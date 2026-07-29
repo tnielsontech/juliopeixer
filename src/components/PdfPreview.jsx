@@ -188,13 +188,13 @@ export default function PdfPreview({ budget, printOnlyPage1, isCapture = false }
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-slate-700">
                     {budget.services
-                      .filter(s => (parseFloat(s.quantity) > 0 || parseFloat(s.unitPrice) > 0))
+                      .filter(s => (parseFloat(s.quantity) > 0))
                       .map(s => (
                         <tr key={s.id} className="hover:bg-slate-50/30">
                           <td className="py-1.5 px-3 font-semibold text-slate-800">{s.name}</td>
-                          <td className="py-1.5 px-3 text-right font-mono text-slate-600">{s.quantity.toLocaleString('pt-BR')} {s.unit || 'm²'}</td>
+                          <td className="py-1.5 px-3 text-right font-mono text-slate-600">{(parseFloat(s.quantity) || 0).toLocaleString('pt-BR')} {s.unit || 'm²'}</td>
                           <td className="py-1.5 px-3 text-right font-mono text-slate-600">{formatCurrency(s.unitPrice)}</td>
-                          <td className="py-1.5 px-3 text-right font-bold font-mono text-slate-800">{formatCurrency(s.subtotal || (s.quantity * s.unitPrice))}</td>
+                          <td className="py-1.5 px-3 text-right font-bold font-mono text-slate-800">{formatCurrency(s.subtotal || ((parseFloat(s.quantity) || 0) * (parseFloat(s.unitPrice) || 0)))}</td>
                         </tr>
                       ))}
                   </tbody>
@@ -415,7 +415,7 @@ export default function PdfPreview({ budget, printOnlyPage1, isCapture = false }
                                 return (
                                   <tr key={sIdx} className="border-b border-slate-50 last:border-0 text-[9.5px]">
                                     <td className="py-0.5 pr-2 font-medium">{match ? match.name : srv.serviceId}</td>
-                                    <td className="py-0.5 text-right font-mono font-bold text-slate-800">{srv.quantity ? `${srv.quantity.toLocaleString('pt-BR')} ${match?.unit || 'm²'}` : '-'}</td>
+                                    <td className="py-0.5 text-right font-mono font-bold text-slate-800">{srv.quantity ? `${(parseFloat(srv.quantity) || 0).toLocaleString('pt-BR')} ${match?.unit || 'm²'}` : '-'}</td>
                                   </tr>
                                 );
                               })}
