@@ -37,6 +37,7 @@ export default function LibraryManager({ isOpen, onClose, library, onSaveLibrary
   const [supabaseUrl, setSupabaseUrl] = useState(localStorage.getItem("jp_supabase_url") || '');
   const [supabaseKey, setSupabaseKey] = useState(localStorage.getItem("jp_supabase_anon_key") || '');
   const [syncProvider, setSyncProvider] = useState(localStorage.getItem("jp_sync_provider") || (localStorage.getItem("jp_supabase_url") ? "supabase" : localStorage.getItem("jp_google_api_url") ? "sheets" : "local"));
+  const [isMigrating, setIsMigrating] = useState(false);
 
   const formatCurrency = (val) => {
     if (val === undefined || val === null || val === '') return '—';
@@ -146,6 +147,54 @@ export default function LibraryManager({ isOpen, onClose, library, onSaveLibrary
     setSyncProvider(val);
     alert(`Provedor de nuvem alterado para: ${val === 'local' ? 'Armazenamento Local' : val === 'sheets' ? 'Google Sheets' : 'Supabase'}. O sistema recarregará.`);
     window.location.reload();
+  };
+
+  const handleMigrateLocalToSupabase = async () => {
+    if (!confirm("Deseja enviar todos os orçamentos e serviços salvos localmente neste aparelho para o Supabase? Isso mesclará os dados na nuvem.")) {
+      return;
+    }
+    
+    setIsMigrating(true);
+    try {
+      const localBudgetsStr = localStorage.getItem("jp_budgets");
+      const localLibraryStr = localStorage.getItem("jp_services_library");
+
+      let budgets = [];
+      let library = [];
+
+      try {
+        if (localBudgetsStr) budgets = JSON.parse(localBudgetsStr);
+        if (localLibraryStr) library = JSON.parse(localLibraryStr);
+      } catch (e) {
+        console.error("Erro ao ler dados locais para migração:", e);
+      }
+
+      if (budgets.length === 0 && library.length === 0) {
+        alert("Nenhum dado local encontrado para migrar.");
+        setIsMigrating(false);
+        return;
+      }
+
+      // Salvar biblioteca no Supabase
+      if (library.length > 0) {
+        await db.saveLibrary(library);
+      }
+
+      // Salvar cada orçamento no Supabase
+      let successCount = 0;
+      for (const b of budgets) {
+        await db.saveBudget(b);
+        successCount++;
+      }
+
+      alert(`Migração concluída! ${successCount} orçamentos e a biblioteca de serviços foram enviados com sucesso para o Supabase.`);
+      window.location.reload();
+    } catch (err) {
+      console.error("Erro na migração:", err);
+      alert(`Ocorreu um erro ao migrar os dados: ${err.message}`);
+    } finally {
+      setIsMigrating(false);
+    }
   };
 
   const handleEditClick = (item) => {
@@ -962,6 +1011,23 @@ export default function LibraryManager({ isOpen, onClose, library, onSaveLibrary
                       </button>
                     )}
                   </div>
+
+                  {localStorage.getItem("jp_supabase_url") && (
+                    <div className="border-t border-slate-800/80 pt-4 mt-2 space-y-2">
+                      <h4 className="text-[11px] font-bold text-slate-200 uppercase tracking-wider">Migração de Dados Locais</h4>
+                      <p className="text-[10px] text-slate-400 leading-relaxed">
+                        Se você possui orçamentos antigos salvos localmente neste aparelho antes de conectar ao Supabase, você pode enviá-los para a nuvem para reestabelecer o seu histórico.
+                      </p>
+                      <button
+                        type="button"
+                        disabled={isMigrating}
+                        onClick={handleMigrateLocalToSupabase}
+                        className="px-4 py-2.5 rounded-lg border border-teal-500/30 hover:border-teal-500/50 bg-teal-950/10 hover:bg-teal-950/30 text-teal-400 text-xs font-bold transition cursor-pointer flex items-center gap-2"
+                      >
+                        {isMigrating ? 'Migrando dados...' : 'Enviar Orçamentos Locais para o Supabase'}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
