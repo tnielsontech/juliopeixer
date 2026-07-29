@@ -151,6 +151,18 @@ export default function App() {
       }
 
       try {
+        if (db.auth.getCurrentUser()) {
+          try {
+            const cloudSettings = await db.getSettings();
+            const localGeminiKey = localStorage.getItem("jp_gemini_api_key");
+            if (localGeminiKey && (!cloudSettings || !cloudSettings.gemini_api_key)) {
+              await db.saveSettings({ gemini_api_key: localGeminiKey });
+            }
+          } catch (e) {
+            console.error("Erro ao carregar settings na inicialização:", e);
+          }
+        }
+
         const cachedLib = localStorage.getItem("jp_services_library");
         const cachedBudg = localStorage.getItem("jp_budgets");
 

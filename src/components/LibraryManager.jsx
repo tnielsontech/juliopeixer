@@ -96,20 +96,30 @@ export default function LibraryManager({ isOpen, onClose, library, onSaveLibrary
     }
   };
 
-  const handleSaveGeminiKey = () => {
+  const handleSaveGeminiKey = async () => {
     const cleanKey = geminiKey.trim();
     if (cleanKey) {
       localStorage.setItem("jp_gemini_api_key", cleanKey);
+      try {
+        await db.saveSettings({ gemini_api_key: cleanKey });
+      } catch (err) {
+        console.error("Erro ao salvar settings na nuvem:", err);
+      }
       alert("Chave API do Gemini salva com sucesso!");
     } else {
       alert("Digite uma chave antes de salvar.");
     }
   };
 
-  const handleDeleteGeminiKey = () => {
+  const handleDeleteGeminiKey = async () => {
     if (confirm("Remover a chave API do Gemini?")) {
       localStorage.removeItem("jp_gemini_api_key");
       setGeminiKey('');
+      try {
+        await db.saveSettings({ gemini_api_key: null });
+      } catch (err) {
+        console.error("Erro ao deletar settings da nuvem:", err);
+      }
       alert("Chave API do Gemini removida.");
     }
   };
