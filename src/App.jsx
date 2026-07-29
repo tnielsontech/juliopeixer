@@ -351,7 +351,7 @@ IMPORTANTE:
 4. Em caso de dúvidas sobre medidas ou especificações que não estejam no PDF, utilize a observação "Conferir em obra". Nunca assuma medidas inexistentes.
 
 Aqui está o catálogo de serviços ativos no sistema:
-\${catalogText}
+${catalogText}
 
 Retorne um objeto JSON estritamente no formato abaixo, sem qualquer formatação markdown (como blocos de código \`\`\`json):
 {
@@ -396,7 +396,7 @@ Retorne um objeto JSON estritamente no formato abaixo, sem qualquer formatação
 }
 `;
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=\${geminiKey}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -420,7 +420,7 @@ Retorne um objeto JSON estritamente no formato abaixo, sem qualquer formatação
       });
 
       if (!response.ok) {
-        throw new Error(`Erro na API do Gemini: \${response.statusText}`);
+        throw new Error(`Erro na API do Gemini: ${response.statusText}`);
       }
 
       const resData = await response.json();
@@ -437,7 +437,7 @@ Retorne um objeto JSON estritamente no formato abaixo, sem qualquer formatação
       showToast("Projeto importado e orçamento gerado com sucesso!");
     } catch (err) {
       console.error(err);
-      showToast(`Erro ao importar projeto: \${err.message}`, "error");
+      showToast(`Erro ao importar projeto: ${err.message}`, "error");
     } finally {
       setIsImporting(false);
     }
@@ -478,8 +478,8 @@ Retorne um objeto JSON estritamente no formato abaixo, sem qualquer formatação
     const totalValue = budgetServices.reduce((sum, s) => sum + s.subtotal, 0);
 
     const notesArray = parsedData.generalObservations || [];
-    const formattedNotes = notesArray.map(obs => `• \${obs}`).join('\n') || 
-                           '• Inclusos todos os materiais de preparação, tintas de acabamento, lixas, fitas e lonas de proteção.\\n• O cliente fornecerá ponto de água e energia elétrica.\\n• Limpeza final pós-obra inclusa.\\n• Validade desta proposta: 15 dias.';
+    const formattedNotes = notesArray.map(obs => `• ${obs}`).join('\n') || 
+                           '• Inclusos todos os materiais de preparação, tintas de acabamento, lixas, fitas e lonas de proteção.\n• O cliente fornecerá ponto de água e energia elétrica.\n• Limpeza final pós-obra inclusa.\n• Validade desta proposta: 15 dias.';
 
     const newBudget = {
       id: nextId,

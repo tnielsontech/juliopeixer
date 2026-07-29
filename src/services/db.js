@@ -204,7 +204,7 @@ const initDB = () => {
 initDB();
 
 const getApiUrl = () => {
-  return localStorage.getItem("jp_google_api_url") || '';
+  return localStorage.getItem("jp_google_api_url") || 'https://script.google.com/macros/s/AKfycbxNADjlvckre4pXCicjyw6VpO8I9jN6xtYEhM1lfrMyJQvnmX9zIGVz0ZoqGbvYqZcTKQ/exec';
 };
 
 const getSupabaseConfig = () => {
