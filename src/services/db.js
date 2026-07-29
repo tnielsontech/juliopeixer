@@ -748,5 +748,31 @@ export const db = {
       }
     }
     return successCount;
+  },
+
+  restoreBackupToSupabase: async () => {
+    const backupData = localStorage.getItem("jp_budgets_backup");
+    if (!backupData) {
+      throw new Error("Nenhum backup local encontrado neste navegador.");
+    }
+
+    let budgets = [];
+    try {
+      budgets = JSON.parse(backupData);
+    } catch (e) {
+      throw new Error("Falha ao ler dados de backup.");
+    }
+
+    if (!Array.isArray(budgets) || budgets.length === 0) {
+      throw new Error("O backup local está vazio.");
+    }
+
+    let successCount = 0;
+    for (const b of budgets) {
+      await db.saveBudget(b);
+      successCount++;
+    }
+
+    return successCount;
   }
 };

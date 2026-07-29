@@ -241,6 +241,24 @@ export default function LibraryManager({ isOpen, onClose, library, onSaveLibrary
     }
   };
 
+  const handleRestoreBackupToSupabase = async () => {
+    if (!confirm("Deseja restaurar os orçamentos do seu backup local de segurança e enviá-los para o Supabase?")) {
+      return;
+    }
+    
+    setIsMigrating(true);
+    try {
+      const count = await db.restoreBackupToSupabase();
+      alert(`Restauração concluída com sucesso! ${count} orçamento(s) do backup local foram enviados para o Supabase.`);
+      window.location.reload();
+    } catch (err) {
+      console.error("Erro ao restaurar backup:", err);
+      alert(`Erro ao restaurar backup: ${err.message}`);
+    } finally {
+      setIsMigrating(false);
+    }
+  };
+
   const handleEditClick = (item) => {
     setEditingId(item.id);
     setFormData({
@@ -1089,6 +1107,26 @@ export default function LibraryManager({ isOpen, onClose, library, onSaveLibrary
                           {isMigrating ? 'Migrando...' : 'Importar Histórico do Google Sheets para o Supabase'}
                         </button>
                       </div>
+
+                      {localStorage.getItem("jp_budgets_backup") && (
+                        <>
+                          <div className="h-px bg-slate-800/60 my-2"></div>
+                          
+                          <div className="space-y-2">
+                            <p className="text-[10px] text-amber-500 font-semibold leading-relaxed">
+                              ⚠️ Backup Local Detectado! Se algum orçamento feito ontem sumiu após a migração do Sheets, você pode restaurá-lo por aqui.
+                            </p>
+                            <button
+                              type="button"
+                              disabled={isMigrating}
+                              onClick={handleRestoreBackupToSupabase}
+                              className="px-4 py-2.5 rounded-lg border border-amber-500/30 hover:border-amber-500/50 bg-amber-950/10 hover:bg-amber-950/30 text-amber-400 text-xs font-bold transition cursor-pointer flex items-center gap-2"
+                            >
+                              {isMigrating ? 'Restaurando...' : 'Restaurar do Backup de Segurança'}
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
