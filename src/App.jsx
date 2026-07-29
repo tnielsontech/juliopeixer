@@ -431,7 +431,14 @@ Retorne um objeto JSON estritamente no formato abaixo, sem qualquer formatação
       });
 
       if (!response.ok) {
-        throw new Error(`Erro na API do Gemini: ${response.statusText}`);
+        let errMsg = response.statusText || `Código ${response.status}`;
+        try {
+          const errJson = await response.json();
+          if (errJson.error && errJson.error.message) {
+            errMsg = errJson.error.message;
+          }
+        } catch (e) {}
+        throw new Error(`Erro na API do Gemini: ${errMsg}`);
       }
 
       const resData = await response.json();
