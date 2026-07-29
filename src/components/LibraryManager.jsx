@@ -156,8 +156,14 @@ export default function LibraryManager({ isOpen, onClose, library, onSaveLibrary
     
     setIsMigrating(true);
     try {
-      const localBudgetsStr = localStorage.getItem("jp_budgets");
+      let localBudgetsStr = localStorage.getItem("jp_budgets");
       const localLibraryStr = localStorage.getItem("jp_services_library");
+      const backupBudgetsStr = localStorage.getItem("jp_budgets_backup");
+
+      // Se o histórico principal estiver vazio, tenta carregar do backup automático gerado antes da conexão
+      if ((!localBudgetsStr || localBudgetsStr === '[]') && backupBudgetsStr && backupBudgetsStr !== '[]') {
+        localBudgetsStr = backupBudgetsStr;
+      }
 
       let budgets = [];
       let library = [];
@@ -1012,7 +1018,7 @@ export default function LibraryManager({ isOpen, onClose, library, onSaveLibrary
                     )}
                   </div>
 
-                  {localStorage.getItem("jp_supabase_url") && (
+                  {syncProvider === "supabase" && (
                     <div className="border-t border-slate-800/80 pt-4 mt-2 space-y-2">
                       <h4 className="text-[11px] font-bold text-slate-200 uppercase tracking-wider">Migração de Dados Locais</h4>
                       <p className="text-[10px] text-slate-400 leading-relaxed">
