@@ -1,4 +1,4 @@
-const CACHE_NAME = 'peixer-pinturas-v1';
+const CACHE_NAME = 'peixer-pinturas-v2';
 const ASSETS = [
   '/',
   '/index.html',
@@ -32,30 +32,31 @@ self.addEventListener('activate', (e) => {
   self.clients.claim();
 });
 
-// Interceptar requisições
+// Interceptar requisições com estratégia Stale-While-Revalidate (mais atualizado)
 self.addEventListener('fetch', (e) => {
-  // Ignorar requisições para a API do Google Sheets (sempre ir para a rede)
-  if (e.request.url.includes('script.google.com') || e.request.method !== 'GET') {
+  // Ignorar requisições que não são GET ou que são externas de APIs
+  if (
+    e.request.method !== 'GET' || 
+    e.request.url.includes('script.google.com') || 
+    e.request.url.includes('supabase.co') || 
+    e.request.url.includes('googleapis.com')
+  ) {
     return;
   }
 
   e.respondWith(
-    caches.match(e.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      
-      return fetch(e.request).then((networkResponse) => {
-        // Apenas cachear arquivos que pertencem à nossa própria origem (ex: scripts, css, imagens locais)
-        if (e.request.url.startsWith(self.location.origin)) {
-          return caches.open(CACHE_NAME).then((cache) => {
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.match(e.request).then((cachedResponse) => {
+        const fetchedResponse = fetch(e.request).then((networkResponse) => {
+          if (networkResponse.status === 200 && e.request.url.startsWith(self.location.origin)) {
             cache.put(e.request, networkResponse.clone());
-            return networkResponse;
-          });
-        }
-        return networkResponse;
-      }).catch(() => {
-        // Fallback caso a rede falhe e o recurso não esteja no cache
+          }
+          return networkResponse;
+        }).catch(() => {
+          // Falha de rede silenciosa
+        });
+
+        return cachedResponse || fetchedResponse;
       });
     })
   );
