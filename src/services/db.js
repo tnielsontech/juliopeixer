@@ -204,7 +204,46 @@ const initDB = () => {
 initDB();
 
 const getApiUrl = () => {
-  return localStorage.getItem("jp_google_api_url") || 'https://script.google.com/macros/s/AKfycbxNADjlvckre4pXCicjyw6VpO8I9jN6xtYEhM1lfrMyJQvnmX9zIGVz0ZoqGbvYqZcTKQ/exec';
+  return localStorage.getItem("jp_google_api_url") || '';
+};
+
+const getSupabaseConfig = () => {
+  const url = localStorage.getItem("jp_supabase_url");
+  const key = localStorage.getItem("jp_supabase_anon_key");
+  return url && key ? { url, key } : null;
+};
+
+const getSyncProvider = () => {
+  const provider = localStorage.getItem("jp_sync_provider");
+  if (provider) return provider;
+  if (getSupabaseConfig()) return "supabase";
+  if (localStorage.getItem("jp_google_api_url")) return "sheets";
+  return "local";
+};
+
+const fetchSupabase = async (path, options = {}) => {
+  const config = getSupabaseConfig();
+  if (!config) throw new Error("Supabase não configurado.");
+  
+  const url = `${config.url}/rest/v1/${path}`;
+  const headers = {
+    "apikey": config.key,
+    "Authorization": `Bearer ${config.key}`,
+    "Content-Type": "application/json",
+    ...options.headers
+  };
+
+  const response = await fetchWithTimeout(url, {
+    ...options,
+    headers
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Erro Supabase: ${response.status} ${response.statusText} - ${errorText}`);
+  }
+
+  return response;
 };
 
 const fetchWithTimeout = async (resource, options = {}) => {
@@ -229,10 +268,10 @@ const fetchWithTimeout = async (resource, options = {}) => {
 export const db = {
   // --- Biblioteca de Serviços ---
   getLibrary: async () => {
-    const url = getApiUrl();
-    if (url) {
+    const provider = getSyncProvider();
+    if (provider === "supabase") {
       try {
-        const res = await fetchWithTimeout(`${url}?action=getLibrary`);
+        const res = await fetchSupabase("services?select=*");
         const services = await res.json();
         if (Array.isArray(services) && services.length > 0) {
           // Identificar se há itens padrões novos que não estão salvos na nuvem
@@ -240,15 +279,39 @@ export const db = {
           if (missing.length > 0) {
             const merged = [...services, ...missing];
             localStorage.setItem("jp_services_library", JSON.stringify(merged));
-            // Sincronizar de volta com a nuvem assincronamente para atualizar a planilha do cliente
             db.saveLibrary(merged).catch(e => console.error("Erro ao mesclar biblioteca nova na nuvem:", e));
             return merged;
           }
           localStorage.setItem("jp_services_library", JSON.stringify(services));
           return services;
+        } else {
+          // Semear tabela Supabase vazia
+          await db.saveLibrary(DEFAULT_SERVICES);
+          return DEFAULT_SERVICES;
         }
       } catch (e) {
-        console.error("Erro ao carregar biblioteca da nuvem, usando local", e);
+        console.error("Erro Supabase getLibrary, usando local:", e);
+      }
+    } else if (provider === "sheets") {
+      const url = getApiUrl();
+      if (url) {
+        try {
+          const res = await fetchWithTimeout(`${url}?action=getLibrary`);
+          const services = await res.json();
+          if (Array.isArray(services) && services.length > 0) {
+            const missing = DEFAULT_SERVICES.filter(def => !services.some(curr => curr.id === def.id));
+            if (missing.length > 0) {
+              const merged = [...services, ...missing];
+              localStorage.setItem("jp_services_library", JSON.stringify(merged));
+              db.saveLibrary(merged).catch(e => console.error("Erro ao mesclar biblioteca nova na nuvem:", e));
+              return merged;
+            }
+            localStorage.setItem("jp_services_library", JSON.stringify(services));
+            return services;
+          }
+        } catch (e) {
+          console.error("Erro ao carregar biblioteca da nuvem, usando local", e);
+        }
       }
     }
     
@@ -262,19 +325,44 @@ export const db = {
 
   saveLibrary: async (services) => {
     localStorage.setItem("jp_services_library", JSON.stringify(services));
+    const provider = getSyncProvider();
     
-    const url = getApiUrl();
-    if (url) {
+    if (provider === "supabase") {
       try {
-        await fetchWithTimeout(url, {
+        await fetchSupabase("services", {
           method: "POST",
-          headers: { "Content-Type": "text/plain" },
-          body: JSON.stringify({ action: "saveLibrary", services })
+          headers: {
+            "Prefer": "resolution=merge-duplicates"
+          },
+          body: JSON.stringify(services.map(s => ({
+            id: s.id,
+            name: s.name,
+            category: s.category,
+            defaultText: s.defaultText,
+            unit: s.unit || "m²",
+            unitPrice: s.unitPrice !== undefined ? Number(s.unitPrice) : 0,
+            active: s.active !== undefined ? s.active : true
+          })))
         });
         return true;
       } catch (e) {
-        console.error("Erro ao sincronizar biblioteca na nuvem", e);
+        console.error("Erro Supabase saveLibrary:", e);
         return false;
+      }
+    } else if (provider === "sheets") {
+      const url = getApiUrl();
+      if (url) {
+        try {
+          await fetchWithTimeout(url, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain" },
+            body: JSON.stringify({ action: "saveLibrary", services })
+          });
+          return true;
+        } catch (e) {
+          console.error("Erro ao sincronizar biblioteca na nuvem", e);
+          return false;
+        }
       }
     }
     return true;
@@ -282,17 +370,31 @@ export const db = {
 
   resetLibrary: async () => {
     localStorage.setItem("jp_services_library", JSON.stringify(DEFAULT_SERVICES));
+    const provider = getSyncProvider();
     
-    const url = getApiUrl();
-    if (url) {
+    if (provider === "supabase") {
       try {
-        await fetchWithTimeout(url, {
-          method: "POST",
-          headers: { "Content-Type": "text/plain" },
-          body: JSON.stringify({ action: "saveLibrary", services: DEFAULT_SERVICES })
+        // Deletar todos os itens da biblioteca no Supabase
+        await fetchSupabase("services?id=neq.dummy", {
+          method: "DELETE"
         });
+        // Reinserir os padrões
+        await db.saveLibrary(DEFAULT_SERVICES);
       } catch (e) {
-        console.error("Erro ao resetar biblioteca na nuvem", e);
+        console.error("Erro Supabase resetLibrary:", e);
+      }
+    } else if (provider === "sheets") {
+      const url = getApiUrl();
+      if (url) {
+        try {
+          await fetchWithTimeout(url, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain" },
+            body: JSON.stringify({ action: "saveLibrary", services: DEFAULT_SERVICES })
+          });
+        } catch (e) {
+          console.error("Erro ao resetar biblioteca na nuvem", e);
+        }
       }
     }
     return DEFAULT_SERVICES;
@@ -300,17 +402,31 @@ export const db = {
 
   // --- Orçamentos ---
   getBudgets: async () => {
-    const url = getApiUrl();
-    if (url) {
+    const provider = getSyncProvider();
+    if (provider === "supabase") {
       try {
-        const res = await fetchWithTimeout(`${url}?action=getBudgets`);
+        const res = await fetchSupabase("budgets?select=*&order=id.asc");
         const budgets = await res.json();
         if (Array.isArray(budgets)) {
           localStorage.setItem("jp_budgets", JSON.stringify(budgets));
           return budgets;
         }
       } catch (e) {
-        console.error("Erro ao carregar orçamentos da nuvem, usando local", e);
+        console.error("Erro Supabase getBudgets, usando local:", e);
+      }
+    } else if (provider === "sheets") {
+      const url = getApiUrl();
+      if (url) {
+        try {
+          const res = await fetchWithTimeout(`${url}?action=getBudgets`);
+          const budgets = await res.json();
+          if (Array.isArray(budgets)) {
+            localStorage.setItem("jp_budgets", JSON.stringify(budgets));
+            return budgets;
+          }
+        } catch (e) {
+          console.error("Erro ao carregar orçamentos da nuvem, usando local", e);
+        }
       }
     }
     
@@ -345,20 +461,51 @@ export const db = {
 
     localStorage.setItem("jp_budgets", JSON.stringify(budgets));
 
-    const url = getApiUrl();
-    if (url) {
+    const provider = getSyncProvider();
+    if (provider === "supabase") {
       try {
-        const response = await fetchWithTimeout(url, {
+        await fetchSupabase("budgets", {
           method: "POST",
-          headers: { "Content-Type": "text/plain" },
-          body: JSON.stringify({ action: "saveBudget", budget: budgetToSave })
+          headers: {
+            "Prefer": "resolution=merge-duplicates"
+          },
+          body: JSON.stringify({
+            id: budgetToSave.id,
+            client: budgetToSave.client,
+            date: budgetToSave.date,
+            status: budgetToSave.status,
+            services: budgetToSave.services,
+            environments: budgetToSave.environments || [],
+            duration: budgetToSave.duration || "",
+            payment: budgetToSave.payment || "",
+            value: String(budgetToSave.value),
+            refDays: budgetToSave.refDays || "",
+            refTeam: budgetToSave.refTeam || "",
+            notes: budgetToSave.notes || "",
+            created_at: budgetToSave.createdAt || new Date().toISOString(),
+            updated_at: budgetToSave.updatedAt || new Date().toISOString()
+          })
         });
-        const resData = await response.json();
-        if (resData && resData.success) {
-          return budgetToSave;
-        }
+        return budgetToSave;
       } catch (e) {
-        console.error("Erro ao salvar orçamento na nuvem", e);
+        console.error("Erro Supabase saveBudget:", e);
+      }
+    } else if (provider === "sheets") {
+      const url = getApiUrl();
+      if (url) {
+        try {
+          const response = await fetchWithTimeout(url, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain" },
+            body: JSON.stringify({ action: "saveBudget", budget: budgetToSave })
+          });
+          const resData = await response.json();
+          if (resData && resData.success) {
+            return budgetToSave;
+          }
+        } catch (e) {
+          console.error("Erro ao salvar orçamento na nuvem", e);
+        }
       }
     }
     return budgetToSave;
@@ -369,18 +516,31 @@ export const db = {
     const filtered = budgets.filter(b => b.id !== id);
     localStorage.setItem("jp_budgets", JSON.stringify(filtered));
 
-    const url = getApiUrl();
-    if (url) {
+    const provider = getSyncProvider();
+    if (provider === "supabase") {
       try {
-        await fetchWithTimeout(url, {
-          method: "POST",
-          headers: { "Content-Type": "text/plain" },
-          body: JSON.stringify({ action: "deleteBudget", id })
+        await fetchSupabase(`budgets?id=eq.${id}`, {
+          method: "DELETE"
         });
         return true;
       } catch (e) {
-        console.error("Erro ao deletar orçamento na nuvem", e);
+        console.error("Erro Supabase deleteBudget:", e);
         return false;
+      }
+    } else if (provider === "sheets") {
+      const url = getApiUrl();
+      if (url) {
+        try {
+          await fetchWithTimeout(url, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain" },
+            body: JSON.stringify({ action: "deleteBudget", id })
+          });
+          return true;
+        } catch (e) {
+          console.error("Erro ao deletar orçamento na nuvem", e);
+          return false;
+        }
       }
     }
     return true;

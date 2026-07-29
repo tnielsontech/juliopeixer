@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Plus, Edit2, Trash2, RotateCcw, AlertTriangle, Search, Layers, Cloud, Sparkles, CheckCircle, Info, HelpCircle, BarChart3 } from 'lucide-react';
+import { X, Plus, Edit2, Trash2, RotateCcw, AlertTriangle, Search, Layers, Cloud, Sparkles, CheckCircle, Info, HelpCircle, BarChart3, Database } from 'lucide-react';
 import { db } from '../services/db';
 
 export default function LibraryManager({ isOpen, onClose, library, onSaveLibrary, budgets = [] }) {
@@ -32,6 +32,11 @@ export default function LibraryManager({ isOpen, onClose, library, onSaveLibrary
   const [apiUrl, setApiUrl] = useState(localStorage.getItem("jp_google_api_url") || '');
   const [showInstructions, setShowInstructions] = useState(false);
   const [geminiKey, setGeminiKey] = useState(localStorage.getItem("jp_gemini_api_key") || '');
+
+  // Estados para Supabase e Provedor de Nuvem
+  const [supabaseUrl, setSupabaseUrl] = useState(localStorage.getItem("jp_supabase_url") || '');
+  const [supabaseKey, setSupabaseKey] = useState(localStorage.getItem("jp_supabase_anon_key") || '');
+  const [syncProvider, setSyncProvider] = useState(localStorage.getItem("jp_sync_provider") || (localStorage.getItem("jp_supabase_url") ? "supabase" : localStorage.getItem("jp_google_api_url") ? "sheets" : "local"));
 
   const formatCurrency = (val) => {
     if (val === undefined || val === null || val === '') return '—';
@@ -106,6 +111,41 @@ export default function LibraryManager({ isOpen, onClose, library, onSaveLibrary
       setGeminiKey('');
       alert("Chave API do Gemini removida.");
     }
+  };
+
+  const handleSaveSupabase = () => {
+    const cleanUrl = supabaseUrl.trim().replace(/\/$/, '');
+    const cleanKey = supabaseKey.trim();
+    if (cleanUrl && cleanKey) {
+      localStorage.setItem("jp_supabase_url", cleanUrl);
+      localStorage.setItem("jp_supabase_anon_key", cleanKey);
+      localStorage.setItem("jp_sync_provider", "supabase"); // auto select provider
+      setSyncProvider("supabase");
+      alert("Conexão com Supabase salva com sucesso! O provedor foi definido para Supabase e o sistema será recarregado.");
+      window.location.reload();
+    } else {
+      alert("Preencha a URL e a Anon Key antes de salvar.");
+    }
+  };
+
+  const handleDisconnectSupabase = () => {
+    if (confirm("Desconectar do Supabase?")) {
+      localStorage.removeItem("jp_supabase_url");
+      localStorage.removeItem("jp_supabase_anon_key");
+      localStorage.setItem("jp_sync_provider", "local");
+      setSupabaseUrl('');
+      setSupabaseKey('');
+      setSyncProvider("local");
+      alert("Supabase desconectado. O sistema voltará ao modo local e será recarregado.");
+      window.location.reload();
+    }
+  };
+
+  const handleSyncProviderChange = (val) => {
+    localStorage.setItem("jp_sync_provider", val);
+    setSyncProvider(val);
+    alert(`Provedor de nuvem alterado para: ${val === 'local' ? 'Armazenamento Local' : val === 'sheets' ? 'Google Sheets' : 'Supabase'}. O sistema recarregará.`);
+    window.location.reload();
   };
 
   const handleEditClick = (item) => {
@@ -722,6 +762,30 @@ export default function LibraryManager({ isOpen, onClose, library, onSaveLibrary
           {activeTab === 'settings' && (
             <div className="flex-1 overflow-y-auto p-6 max-w-3xl space-y-6 text-left">
               
+              {/* SELETOR DE PROVEDOR DE SINCRONIZAÇÃO */}
+              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-3">
+                <div className="flex items-start gap-3">
+                  <Settings className="w-5 h-5 text-brand shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="text-sm font-bold text-white">Provedor de Sincronização em Nuvem</h3>
+                    <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                      Escolha onde os orçamentos e itens do catálogo serão salvos. O Supabase é a solução profissional mais rápida e estável.
+                    </p>
+                  </div>
+                </div>
+                <div className="max-w-xs pt-1.5 pl-8">
+                  <select
+                    value={syncProvider}
+                    onChange={(e) => handleSyncProviderChange(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-brand/40 rounded-lg px-3 py-2.5 text-slate-200 text-xs outline-none transition cursor-pointer"
+                  >
+                    <option value="local">Armazenamento Local (Apenas neste aparelho)</option>
+                    <option value="sheets">Google Sheets (Planilha na Nuvem)</option>
+                    <option value="supabase">Supabase Database (Banco de Dados em Nuvem)</option>
+                  </select>
+                </div>
+              </div>
+              
               {/* CARD 1: GOOGLE SHEETS */}
               <div className="bg-slate-950/30 border border-slate-800 rounded-xl p-5 space-y-4">
                 <div className="flex items-start gap-3">
@@ -839,6 +903,62 @@ export default function LibraryManager({ isOpen, onClose, library, onSaveLibrary
                         className="px-3 py-2 rounded-lg border border-slate-800 hover:border-red-900/50 hover:bg-red-950/20 text-slate-400 hover:text-red-400 text-xs font-semibold transition cursor-pointer"
                       >
                         Remover Chave
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* CARD: BANCO DE DADOS CLOUD (SUPABASE) */}
+              <div className="bg-slate-950/30 border border-slate-800 rounded-xl p-5 space-y-4">
+                <div className="flex items-start gap-3">
+                  <Database className="w-5 h-5 text-brand shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="text-sm font-bold text-white">Banco de Dados Supabase (Nuvem)</h3>
+                    <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                      Conecte seu sistema ao banco de dados Supabase para salvar e sincronizar seus dados de forma estável e em tempo real.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-3 pt-2 max-w-xl">
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-550">URL do Supabase (Project URL)</label>
+                    <input
+                      type="text"
+                      placeholder="https://sua-id.supabase.co"
+                      value={supabaseUrl}
+                      onChange={(e) => setSupabaseUrl(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 focus:border-brand/40 rounded-lg px-3 py-2 text-slate-200 text-xs outline-none transition"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-550">Supabase Anon Key (Chave pública)</label>
+                    <input
+                      type="password"
+                      placeholder="Cole sua anon/public api key do Supabase..."
+                      value={supabaseKey}
+                      onChange={(e) => setSupabaseKey(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 focus:border-brand/40 rounded-lg px-3 py-2 text-slate-200 text-xs outline-none transition"
+                    />
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={handleSaveSupabase}
+                      className="px-4 py-2 rounded-lg bg-brand hover:bg-brand-hover text-slate-950 text-xs font-bold transition cursor-pointer shadow-md shadow-brand/5"
+                    >
+                      Salvar Conexão Supabase
+                    </button>
+                    {localStorage.getItem("jp_supabase_url") && (
+                      <button
+                        type="button"
+                        onClick={handleDisconnectSupabase}
+                        className="px-3 py-2 rounded-lg border border-slate-800 hover:border-red-900/50 hover:bg-red-950/20 text-slate-400 hover:text-red-400 text-xs font-semibold transition cursor-pointer"
+                      >
+                        Desconectar Supabase
                       </button>
                     )}
                   </div>
