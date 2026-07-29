@@ -207,9 +207,12 @@ const getApiUrl = () => {
   return localStorage.getItem("jp_google_api_url") || 'https://script.google.com/macros/s/AKfycbxNADjlvckre4pXCicjyw6VpO8I9jN6xtYEhM1lfrMyJQvnmX9zIGVz0ZoqGbvYqZcTKQ/exec';
 };
 
+const BAKED_SUPABASE_URL = "https://pnasppquvknrukzrlxhq.supabase.co";
+const BAKED_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBuYXNwcHF1dmtucnVrenJseGhxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyODg4NjQsImV4cCI6MjEwMDg2NDg2NH0.JfmH0QiBNlK8KJd8zmYnGEFWYAVXIubeyC45sEOedqs";
+
 const getSupabaseConfig = () => {
-  const url = localStorage.getItem("jp_supabase_url");
-  const key = localStorage.getItem("jp_supabase_anon_key");
+  const url = localStorage.getItem("jp_supabase_url") || BAKED_SUPABASE_URL;
+  const key = localStorage.getItem("jp_supabase_anon_key") || BAKED_SUPABASE_ANON_KEY;
   return url && key ? { url, key } : null;
 };
 
@@ -217,7 +220,6 @@ const getSyncProvider = () => {
   const provider = localStorage.getItem("jp_sync_provider");
   if (provider) return provider;
   if (getSupabaseConfig()) return "supabase";
-  if (localStorage.getItem("jp_google_api_url")) return "sheets";
   return "local";
 };
 
@@ -226,9 +228,11 @@ const fetchSupabase = async (path, options = {}) => {
   if (!config) throw new Error("Supabase não configurado.");
   
   const url = `${config.url}/rest/v1/${path}`;
+  const token = localStorage.getItem("jp_auth_token") || config.key;
+
   const headers = {
     "apikey": config.key,
-    "Authorization": `Bearer ${config.key}`,
+    "Authorization": `Bearer ${token}`,
     "Content-Type": "application/json",
     ...options.headers
   };
@@ -266,6 +270,99 @@ const fetchWithTimeout = async (resource, options = {}) => {
 };
 
 export const db = {
+  // --- Autenticação ---
+  auth: {
+    login: async (email, password) => {
+      const config = getSupabaseConfig();
+      if (!config) throw new Error("Supabase não configurado.");
+
+      const url = `${config.url}/auth/v1/token?grant_type=password`;
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "apikey": config.key,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ email, password })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error_description || errData.error || "E-mail ou senha incorretos.");
+      }
+
+      const data = await response.json();
+      if (data.access_token) {
+        localStorage.setItem("jp_auth_token", data.access_token);
+        localStorage.setItem("jp_auth_user", JSON.stringify(data.user));
+        localStorage.setItem("jp_sync_provider", "supabase");
+        return data.user;
+      }
+      throw new Error("Token de acesso inválido.");
+    },
+
+    logout: () => {
+      localStorage.removeItem("jp_auth_token");
+      localStorage.removeItem("jp_auth_user");
+    },
+
+    getCurrentUser: () => {
+      const userStr = localStorage.getItem("jp_auth_user");
+      const token = localStorage.getItem("jp_auth_token");
+      if (!token || !userStr) return null;
+      try {
+        return JSON.parse(userStr);
+      } catch (e) {
+        return null;
+      }
+    }
+  },
+
+  // --- Configurações Sincronizadas ---
+  getSettings: async () => {
+    const provider = getSyncProvider();
+    if (provider === "supabase") {
+      try {
+        const res = await fetchSupabase("settings?key=eq.global");
+        const data = await res.json();
+        if (data && data.length > 0) {
+          const settings = data[0].value;
+          if (settings.gemini_api_key) {
+            localStorage.setItem("jp_gemini_api_key", settings.gemini_api_key);
+          }
+          return settings;
+        }
+      } catch (e) {
+        console.error("Erro ao obter settings do Supabase:", e);
+      }
+    }
+    return null;
+  },
+
+  saveSettings: async (settings) => {
+    if (settings.gemini_api_key) {
+      localStorage.setItem("jp_gemini_api_key", settings.gemini_api_key);
+    }
+    const provider = getSyncProvider();
+    if (provider === "supabase") {
+      try {
+        await fetchSupabase("settings?key=eq.global", {
+          method: "POST",
+          headers: {
+            "Prefer": "resolution=merge-duplicates"
+          },
+          body: JSON.stringify({
+            key: "global",
+            value: settings,
+            updated_at: new Date().toISOString()
+          })
+        });
+      } catch (e) {
+        console.error("Erro ao salvar settings no Supabase:", e);
+      }
+    }
+  },
+
   // --- Biblioteca de Serviços ---
   getLibrary: async () => {
     const provider = getSyncProvider();

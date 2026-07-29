@@ -5,6 +5,7 @@ import ServicesSelector from './components/ServicesSelector';
 import PdfPreview from './components/PdfPreview';
 import LibraryManager from './components/LibraryManager';
 import HistoryList from './components/HistoryList';
+import LoginScreen from './components/LoginScreen';
 import { db } from './services/db';
 import { Eye, Edit, CheckCircle, AlertCircle, PlusCircle, Save, History, Settings, Share2, ChevronDown, FileText, Upload, Sparkles } from 'lucide-react';
 import html2canvas from 'html2canvas-pro';
@@ -82,6 +83,7 @@ export default function App() {
   const [selectedImportFiles, setSelectedImportFiles] = useState([]);
   const [refinePrompt, setRefinePrompt] = useState('');
   const [isRefining, setIsRefining] = useState(false);
+  const [userSession, setUserSession] = useState(db.auth.getCurrentUser());
 
   // Tab ativa no mobile (Editor vs PDF)
   const [activeMobileTab, setActiveMobileTab] = useState('editor'); // 'editor' | 'preview'
@@ -274,6 +276,12 @@ export default function App() {
       setCurrentStep(1);
       showToast("Novo orçamento iniciado");
     }
+  };
+
+  const handleLogout = () => {
+    db.auth.logout();
+    setUserSession(null);
+    showToast("Sessão encerrada com sucesso!");
   };
 
   const handleServicesChange = (services) => {
@@ -1218,6 +1226,12 @@ Retorne apenas o objeto JSON limpo e estruturado, sem blocos de código markdown
     );
   }
 
+  if (!userSession) {
+    return (
+      <LoginScreen onLoginSuccess={(user) => setUserSession(user)} />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col font-sans select-none text-slate-100">
       
@@ -1239,6 +1253,8 @@ Retorne apenas o objeto JSON limpo e estruturado, sem blocos de código markdown
         onSendWhatsAppLink={handleSendWhatsAppLink}
         onCopyClientLink={handleCopyClientLink}
         isSaving={isSaving}
+        onLogout={handleLogout}
+        userSession={userSession}
       />
 
       {/* SELETOR MOBILE EDITOR vs PREVIEW (no-print) */}

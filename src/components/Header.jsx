@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { PlusCircle, Save, Printer, History, Settings, Clipboard, ChevronDown, Menu, FileUp, Loader2 } from 'lucide-react';
+import { PlusCircle, Save, Printer, History, Settings, Clipboard, ChevronDown, Menu, FileUp, Loader2, LogOut } from 'lucide-react';
 
 export default function Header({ 
   onNew, 
@@ -17,7 +17,9 @@ export default function Header({
   onShareImage,
   onSendWhatsAppLink,
   onCopyClientLink,
-  isSaving 
+  isSaving,
+  onLogout,
+  userSession
 }) {
   const [isCopyDropdownOpen, setIsCopyDropdownOpen] = useState(false);
   const [isPrintDropdownOpen, setIsPrintDropdownOpen] = useState(false);
@@ -244,6 +246,20 @@ export default function Header({
           <Settings className="w-4.5 h-4.5" />
           <span>Itens</span>
         </button>
+
+        {userSession && (
+          <>
+            <div className="h-6 w-px bg-slate-800"></div>
+            <button
+              onClick={onLogout}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium bg-red-950/20 hover:bg-red-950/50 text-red-400 border border-red-900/30 hover:border-red-900/60 transition-all cursor-pointer"
+              title="Encerrar sessão"
+            >
+              <LogOut className="w-4.5 h-4.5" />
+              <span>Sair</span>
+            </button>
+          </>
+        )}
       </div>
 
       {/* AÇÕES MOBILE (Consolidado em um único botão "MENU") */}
@@ -325,6 +341,23 @@ export default function Header({
                 <Settings className="w-4 h-4 text-brand" />
                 <span>Itens</span>
               </button>
+
+              {userSession && (
+                <>
+                  <div className="h-px bg-slate-800 my-1"></div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onLogout();
+                      setIsMobileDropdownOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2.5 rounded-lg text-xs font-bold text-red-400 hover:text-red-300 hover:bg-slate-800 transition cursor-pointer flex items-center gap-2"
+                  >
+                    <LogOut className="w-4 h-4 text-red-400" />
+                    <span>Sair</span>
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>
