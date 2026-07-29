@@ -1,0 +1,22 @@
+{
+  "name": "Júlio Peixer Pinturas",
+  "short_name": "Peixer Pinturas",
+  "description": "Orçamentos Profissionais Júlio Peixer Pinturas",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#00e6b8",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
