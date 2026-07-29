@@ -448,7 +448,13 @@ Retorne um objeto JSON estritamente no formato abaixo, sem qualquer formatação
         throw new Error("Resposta da IA vazia ou inválida.");
       }
 
-      const parsed = JSON.parse(rawText.trim());
+      // Limpeza robusta do JSON retornado pela IA para evitar erros de sintaxe (como comentários ou vírgulas extras)
+      let cleanedText = rawText.trim();
+      cleanedText = cleanedText.replace(/^```(?:json)?/gi, '').replace(/```$/g, '').trim();
+      cleanedText = cleanedText.replace(/\/\*[\s\S]*?\*\/|([^\\:]|^)\/\/.*$/gm, '$1');
+      cleanedText = cleanedText.replace(/,\s*([\]}])/g, '$1');
+
+      const parsed = JSON.parse(cleanedText);
 
       // Construir orçamento a partir do retorno
       await buildBudgetFromImport(parsed);
