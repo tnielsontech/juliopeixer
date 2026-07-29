@@ -6,7 +6,7 @@ import PdfPreview from './components/PdfPreview';
 import LibraryManager from './components/LibraryManager';
 import HistoryList from './components/HistoryList';
 import { db } from './services/db';
-import { Eye, Edit, CheckCircle, AlertCircle, PlusCircle, Save, History, Settings, Share2, ChevronDown } from 'lucide-react';
+import { Eye, Edit, CheckCircle, AlertCircle, PlusCircle, Save, History, Settings, Share2, ChevronDown, FileText, Upload } from 'lucide-react';
 import html2canvas from 'html2canvas-pro';
 
 const JULIO_PHONE = "5547999173996";
@@ -77,6 +77,9 @@ export default function App() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [printOnlyPage1, setPrintOnlyPage1] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importInstructions, setImportInstructions] = useState('');
+  const [selectedImportFiles, setSelectedImportFiles] = useState([]);
 
   // Tab ativa no mobile (Editor vs PDF)
   const [activeMobileTab, setActiveMobileTab] = useState('editor'); // 'editor' | 'preview'
@@ -300,17 +303,17 @@ export default function App() {
   };
 
   const triggerPDFImport = () => {
-    fileInputRef.current?.click();
+    setIsImportModalOpen(true);
   };
 
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files || []);
     if (files.length > 0) {
-      handleImportPDF(files);
+      setSelectedImportFiles(prev => [...prev, ...files]);
     }
   };
 
-  const handleImportPDF = async (files) => {
+  const handleImportPDF = async (files, instructions = '') => {
     const geminiKey = localStorage.getItem("jp_gemini_api_key");
     if (!geminiKey) {
       showToast("Por favor, configure sua chave do Gemini nas Configurações (Itens) para importar PDFs.", "error");
@@ -354,6 +357,8 @@ Analise detalhadamente os arquivos de projeto arquitetônico/interiores e especi
 
 Você deve identificar todos os ambientes/cômodos (ex: Cozinha, Suíte Master, etc.) com suas respectivas áreas, pé-direito, tintas especificadas, observações de acabamento e serviços necessários.
 
+${instructions ? `DIRETRIZES IMPORTANTES DO USUÁRIO QUE VOCÊ DEVE SEGUIR À RISCA:
+"${instructions}"\n` : ''}
 IMPORTANTE: 
 1. Mapeie cada serviço necessário para um item do nosso catálogo de serviços.
 2. NÃO INVENTE IDs de serviço. Use estritamente e somente os IDs fornecidos no catálogo abaixo.
@@ -1431,6 +1436,126 @@ Retorne um objeto JSON estritamente no formato abaixo, sem qualquer formatação
         onSaveLibrary={handleSaveLibrary}
         budgets={budgets}
       />
+
+      {/* MODAL: IMPORTAÇÃO DE PDF COM DIRETRIZES DA IA (no-print) */}
+      {isImportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in no-print">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-5 animate-scale-up">
+            <div className="flex justify-between items-center border-b border-slate-800/80 pb-3">
+              <div className="flex items-center gap-2.5">
+                <FileText className="w-5 h-5 text-brand" />
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider">Importar Projeto com IA</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsImportModalOpen(false);
+                  setSelectedImportFiles([]);
+                  setImportInstructions('');
+                }}
+                className="text-slate-400 hover:text-slate-200 text-sm font-bold p-1 cursor-pointer transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-slate-400">
+                  Instruções Adicionais para a IA (Opcional)
+                </label>
+                <textarea
+                  placeholder="Ex: Ignorar o deck externo da arquiteta, focar apenas na pintura interna de paredes e tetos, usar massa corrida apenas nas suítes..."
+                  value={importInstructions}
+                  onChange={(e) => setImportInstructions(e.target.value)}
+                  rows="3"
+                  className="w-full bg-slate-950 border border-slate-850 focus:border-brand/40 rounded-lg p-3 text-xs text-slate-200 outline-none transition resize-none placeholder-slate-600"
+                />
+                <p className="text-[10px] text-slate-500 leading-relaxed">
+                  Digite regras que você deseja que a inteligência artificial respeite na hora de analisar e catalogar os cômodos.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-slate-400">
+                  Arquivos de Projeto (PDF)
+                </label>
+                
+                {selectedImportFiles.length === 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full py-8 border-2 border-dashed border-slate-800 hover:border-brand/30 bg-slate-950/40 hover:bg-slate-950/80 rounded-xl flex flex-col items-center justify-center gap-2 cursor-pointer transition text-slate-400"
+                  >
+                    <Upload className="w-6 h-6 text-brand/70" />
+                    <span className="text-xs font-medium">Selecionar Arquivos PDF do Projeto</span>
+                    <span className="text-[10px] text-slate-600">Suporta múltiplos PDFs</span>
+                  </button>
+                ) : (
+                  <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4 space-y-3">
+                    <div className="space-y-2">
+                      {selectedImportFiles.map((file, idx) => (
+                        <div key={idx} className="flex justify-between items-center text-xs bg-slate-900 border border-slate-850/60 rounded px-3 py-2 text-slate-300">
+                          <span className="truncate max-w-[280px] font-mono text-[11px]">{file.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedImportFiles(selectedImportFiles.filter((_, i) => i !== idx))}
+                            className="text-red-400 hover:text-red-300 font-bold text-[10px] uppercase cursor-pointer"
+                          >
+                            Remover
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex justify-between items-center pt-1 border-t border-slate-900">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="text-xs text-brand hover:text-brand-hover font-semibold cursor-pointer"
+                      >
+                        + Adicionar arquivo
+                      </button>
+                      <span className="text-[10px] text-slate-500 font-medium">
+                        {selectedImportFiles.length} selecionado(s)
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-slate-800/80 pt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsImportModalOpen(false);
+                  setSelectedImportFiles([]);
+                  setImportInstructions('');
+                }}
+                className="px-4 py-2 border border-slate-800 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-200 text-xs font-semibold transition cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={selectedImportFiles.length === 0}
+                onClick={async () => {
+                  setIsImportModalOpen(false);
+                  const filesToImport = [...selectedImportFiles];
+                  const instructionsToUse = importInstructions;
+                  setSelectedImportFiles([]);
+                  setImportInstructions('');
+                  await handleImportPDF(filesToImport, instructionsToUse);
+                }}
+                className="px-4 py-2 bg-brand hover:bg-brand-hover disabled:bg-slate-800 text-slate-950 disabled:text-slate-500 rounded-lg text-xs font-bold transition cursor-pointer disabled:cursor-not-allowed shadow-md shadow-brand/5"
+              >
+                Gerar Proposta com IA
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Hidden A4 preview used exclusively for html2canvas generation to prevent scaling & overlapping text bugs in Safari/WebKit */}
       <div className="no-print absolute top-[-9999px] left-[-9999px] pointer-events-none" style={{ width: '210mm', height: 'auto' }}>
