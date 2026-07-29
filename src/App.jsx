@@ -6,7 +6,7 @@ import PdfPreview from './components/PdfPreview';
 import LibraryManager from './components/LibraryManager';
 import HistoryList from './components/HistoryList';
 import { db } from './services/db';
-import { Eye, Edit, CheckCircle, AlertCircle, PlusCircle, Save, History, Settings, Share2, ChevronDown, FileText, Upload } from 'lucide-react';
+import { Eye, Edit, CheckCircle, AlertCircle, PlusCircle, Save, History, Settings, Share2, ChevronDown, FileText, Upload, Sparkles } from 'lucide-react';
 import html2canvas from 'html2canvas-pro';
 
 const JULIO_PHONE = "5547999173996";
@@ -80,6 +80,8 @@ export default function App() {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [importInstructions, setImportInstructions] = useState('');
   const [selectedImportFiles, setSelectedImportFiles] = useState([]);
+  const [refinePrompt, setRefinePrompt] = useState('');
+  const [isRefining, setIsRefining] = useState(false);
 
   // Tab ativa no mobile (Editor vs PDF)
   const [activeMobileTab, setActiveMobileTab] = useState('editor'); // 'editor' | 'preview'
@@ -469,6 +471,95 @@ Retorne um objeto JSON estritamente no formato abaixo, sem qualquer formatação
       showToast(`Erro ao importar projeto: ${err.message}`, "error");
     } finally {
       setIsImporting(false);
+    }
+  };
+
+  const handleRefineBudget = async (instruction) => {
+    if (!instruction.trim()) return;
+
+    const geminiKey = localStorage.getItem("jp_gemini_api_key");
+    if (!geminiKey) {
+      showToast("Por favor, configure sua chave do Gemini nas Configurações (Itens) para usar o ajuste de IA.", "error");
+      setIsLibraryOpen(true);
+      return;
+    }
+
+    setIsRefining(true);
+    showToast("IA ajustando orçamento...", "info");
+
+    try {
+      const catalogText = library
+        .filter(item => item.active)
+        .map(item => `ID: "${item.id}" | Nome: "${item.name}" | Categoria: "${item.category}" | Unidade padrão: "${item.unit || 'm²'}" | Preço padrão: ${item.unitPrice || 0}`)
+        .join("\n");
+
+      const systemPrompt = `
+Você é o assistente técnico de orçamentos do pintor Júlio Peixer.
+Sua tarefa é modificar o ORÇAMENTO ATUAL (fornecido em formato JSON) com base na INSTRUÇÃO DE AJUSTE do usuário.
+
+ORÇAMENTO ATUAL:
+${JSON.stringify(budget, null, 2)}
+
+INSTRUÇÃO DE AJUSTE:
+"${instruction}"
+
+Catálogo de serviços ativos no sistema (caso precise adicionar novos itens):
+${catalogText}
+
+Você deve processar a instrução, recalcular os subtotais e o valor total do orçamento, e retornar o ORÇAMENTO MODIFICADO estritamente no mesmo formato JSON.
+NÃO INVENTE novos campos de orçamento ou IDs de serviço inexistentes no catálogo.
+Retorne apenas o objeto JSON limpo e estruturado, sem blocos de código markdown (como \`\`\`json):
+`;
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash-lite:generateContent`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': geminiKey
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{ text: systemPrompt }]
+          }],
+          generationConfig: {
+            responseMimeType: "application/json"
+          }
+        })
+      });
+
+      if (!response.ok) {
+        let errMsg = response.statusText || `Código ${response.status}`;
+        try {
+          const errJson = await response.json();
+          if (errJson.error && errJson.error.message) {
+            errMsg = errJson.error.message;
+          }
+        } catch (e) {}
+        throw new Error(`Erro na API do Gemini: ${errMsg}`);
+      }
+
+      const resData = await response.json();
+      const rawText = resData.candidates?.[0]?.content?.parts?.[0]?.text;
+      
+      if (!rawText) {
+        throw new Error("Resposta da IA vazia.");
+      }
+
+      let cleanedText = rawText.trim();
+      cleanedText = cleanedText.replace(/^```(?:json)?/gi, '').replace(/```$/g, '').trim();
+      cleanedText = cleanedText.replace(/\/\*[\s\S]*?\*\/|([^\\:]|^)\/\/.*$/gm, '$1');
+      cleanedText = cleanedText.replace(/,\s*([\]}])/g, '$1');
+
+      const parsed = JSON.parse(cleanedText);
+
+      setBudget(parsed);
+      setRefinePrompt('');
+      showToast("Orçamento ajustado com sucesso!");
+    } catch (err) {
+      console.error(err);
+      showToast(`Erro ao ajustar orçamento: ${err.message}`, "error");
+    } finally {
+      setIsRefining(false);
     }
   };
 
@@ -1295,6 +1386,41 @@ Retorne um objeto JSON estritamente no formato abaixo, sem qualquer formatação
                   />
                 );
               })}
+            </div>
+
+            {/* CARD DE AJUSTE RÁPIDO COM IA */}
+            <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 space-y-3 shrink-0">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-brand animate-pulse" />
+                <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">Ajuste Rápido com IA</span>
+              </div>
+              <p className="text-[10px] text-slate-400 leading-relaxed">
+                Digite o que deseja mudar neste orçamento (ex: *"Remova o deck de madeira"*, *"Adicione lixamento de portas"*, *"Troque Suvinil por Coral no teto"*).
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Instrução para a IA..."
+                  value={refinePrompt}
+                  onChange={(e) => setRefinePrompt(e.target.value)}
+                  onKeyDown={async (e) => {
+                    if (e.key === 'Enter') {
+                      await handleRefineBudget(refinePrompt);
+                    }
+                  }}
+                  className="flex-1 bg-slate-950 border border-slate-850 focus:border-brand/40 rounded-lg px-3 py-2 text-xs text-slate-200 outline-none transition placeholder-slate-700"
+                />
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await handleRefineBudget(refinePrompt);
+                  }}
+                  disabled={isRefining || !refinePrompt.trim()}
+                  className="px-3.5 py-2 bg-brand hover:bg-brand-hover disabled:bg-slate-850 text-slate-950 disabled:text-slate-500 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer disabled:cursor-not-allowed shadow-sm shadow-brand/5"
+                >
+                  {isRefining ? 'Ajustando...' : 'Aplicar'}
+                </button>
+              </div>
             </div>
 
             {/* SLIDER VIEWPORT */}
