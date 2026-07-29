@@ -235,7 +235,7 @@ export default function App() {
       }
     };
     initData();
-  }, []);
+  }, [userSession]);
 
   // Monitorar fechamento da caixa de impressão para restaurar exibição completa
   useEffect(() => {

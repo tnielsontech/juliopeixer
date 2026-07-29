@@ -720,5 +720,33 @@ export const db = {
       console.error("Erro ao duplicar orçamento", e);
       return null;
     }
+  },
+
+  migrateSheetsToSupabase: async () => {
+    const url = getApiUrl();
+    if (!url) throw new Error("URL do Google Sheets não encontrada.");
+
+    const resBudgets = await fetchWithTimeout(`${url}?action=getBudgets`, { timeout: 15000 });
+    const sheetsBudgets = await resBudgets.json();
+
+    const resLib = await fetchWithTimeout(`${url}?action=getLibrary`, { timeout: 15000 });
+    const sheetsLib = await resLib.json();
+
+    if (!Array.isArray(sheetsBudgets) && !Array.isArray(sheetsLib)) {
+      throw new Error("Não foi possível carregar os dados do Google Sheets.");
+    }
+
+    if (Array.isArray(sheetsLib) && sheetsLib.length > 0) {
+      await db.saveLibrary(sheetsLib);
+    }
+
+    let successCount = 0;
+    if (Array.isArray(sheetsBudgets)) {
+      for (const b of sheetsBudgets) {
+        await db.saveBudget(b);
+        successCount++;
+      }
+    }
+    return successCount;
   }
 };

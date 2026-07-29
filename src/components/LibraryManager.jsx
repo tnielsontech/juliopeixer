@@ -223,6 +223,24 @@ export default function LibraryManager({ isOpen, onClose, library, onSaveLibrary
     }
   };
 
+  const handleMigrateSheetsToSupabase = async () => {
+    if (!confirm("Deseja importar todos os orçamentos e itens do seu Google Sheets para o seu banco de dados do Supabase? Isso mesclará os dados na nuvem.")) {
+      return;
+    }
+    
+    setIsMigrating(true);
+    try {
+      const count = await db.migrateSheetsToSupabase();
+      alert(`Migração do Google Sheets concluída com sucesso! ${count} orçamentos e a biblioteca foram enviados para o Supabase.`);
+      window.location.reload();
+    } catch (err) {
+      console.error("Erro na migração do Sheets:", err);
+      alert(`Erro ao migrar dados do Google Sheets: ${err.message}`);
+    } finally {
+      setIsMigrating(false);
+    }
+  };
+
   const handleEditClick = (item) => {
     setEditingId(item.id);
     setFormData({
@@ -1039,19 +1057,38 @@ export default function LibraryManager({ isOpen, onClose, library, onSaveLibrary
                   </div>
 
                   {syncProvider === "supabase" && (
-                    <div className="border-t border-slate-800/80 pt-4 mt-2 space-y-2">
-                      <h4 className="text-[11px] font-bold text-slate-200 uppercase tracking-wider">Migração de Dados Locais</h4>
-                      <p className="text-[10px] text-slate-400 leading-relaxed">
-                        Se você possui orçamentos antigos salvos localmente neste aparelho antes de conectar ao Supabase, você pode enviá-los para a nuvem para reestabelecer o seu histórico.
-                      </p>
-                      <button
-                        type="button"
-                        disabled={isMigrating}
-                        onClick={handleMigrateLocalToSupabase}
-                        className="px-4 py-2.5 rounded-lg border border-teal-500/30 hover:border-teal-500/50 bg-teal-950/10 hover:bg-teal-950/30 text-teal-400 text-xs font-bold transition cursor-pointer flex items-center gap-2"
-                      >
-                        {isMigrating ? 'Migrando dados...' : 'Enviar Orçamentos Locais para o Supabase'}
-                      </button>
+                    <div className="border-t border-slate-800/80 pt-4 mt-2 space-y-3">
+                      <h4 className="text-[11px] font-bold text-slate-200 uppercase tracking-wider">Migração de Dados</h4>
+                      
+                      <div className="space-y-2">
+                        <p className="text-[10px] text-slate-400 leading-relaxed">
+                          Se você possui orçamentos antigos salvos localmente neste aparelho antes de conectar ao Supabase, você pode enviá-los para a nuvem.
+                        </p>
+                        <button
+                          type="button"
+                          disabled={isMigrating}
+                          onClick={handleMigrateLocalToSupabase}
+                          className="px-4 py-2.5 rounded-lg border border-teal-500/30 hover:border-teal-500/50 bg-teal-950/10 hover:bg-teal-950/30 text-teal-400 text-xs font-bold transition cursor-pointer flex items-center gap-2"
+                        >
+                          {isMigrating ? 'Migrando...' : 'Enviar Orçamentos Locais para o Supabase'}
+                        </button>
+                      </div>
+
+                      <div className="h-px bg-slate-800/60 my-2"></div>
+
+                      <div className="space-y-2">
+                        <p className="text-[10px] text-slate-400 leading-relaxed">
+                          Se o seu histórico de orçamentos antigos estiver no seu Google Sheets, você pode importá-los diretamente para o Supabase.
+                        </p>
+                        <button
+                          type="button"
+                          disabled={isMigrating}
+                          onClick={handleMigrateSheetsToSupabase}
+                          className="px-4 py-2.5 rounded-lg border border-brand/30 hover:border-brand/50 bg-brand/5 hover:bg-brand/10 text-brand text-xs font-bold transition cursor-pointer flex items-center gap-2"
+                        >
+                          {isMigrating ? 'Migrando...' : 'Importar Histórico do Google Sheets para o Supabase'}
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
