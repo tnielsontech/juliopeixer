@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Plus, Edit2, Trash2, RotateCcw, AlertTriangle, Search, Layers, Cloud, Sparkles, CheckCircle, Info, HelpCircle, BarChart3, Database } from 'lucide-react';
+import { X, Plus, Edit2, Trash2, RotateCcw, AlertTriangle, Search, Layers, Cloud, Sparkles, CheckCircle, Info, HelpCircle, BarChart3, Database, Settings } from 'lucide-react';
 import { db } from '../services/db';
 
 export default function LibraryManager({ isOpen, onClose, library, onSaveLibrary, budgets = [] }) {
