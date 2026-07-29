@@ -270,6 +270,10 @@ const fetchWithTimeout = async (resource, options = {}) => {
 };
 
 export const db = {
+  // --- Configurações de Conexão ---
+  getSyncProvider,
+  getSupabaseConfig,
+
   // --- Autenticação ---
   auth: {
     login: async (email, password) => {

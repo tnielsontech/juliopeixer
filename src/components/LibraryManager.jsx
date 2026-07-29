@@ -34,9 +34,9 @@ export default function LibraryManager({ isOpen, onClose, library, onSaveLibrary
   const [geminiKey, setGeminiKey] = useState(localStorage.getItem("jp_gemini_api_key") || '');
 
   // Estados para Supabase e Provedor de Nuvem
-  const [supabaseUrl, setSupabaseUrl] = useState(localStorage.getItem("jp_supabase_url") || '');
-  const [supabaseKey, setSupabaseKey] = useState(localStorage.getItem("jp_supabase_anon_key") || '');
-  const [syncProvider, setSyncProvider] = useState(localStorage.getItem("jp_sync_provider") || (localStorage.getItem("jp_supabase_url") ? "supabase" : localStorage.getItem("jp_google_api_url") ? "sheets" : "local"));
+  const [supabaseUrl, setSupabaseUrl] = useState(db.getSupabaseConfig()?.url || '');
+  const [supabaseKey, setSupabaseKey] = useState(db.getSupabaseConfig()?.key || '');
+  const [syncProvider, setSyncProvider] = useState(db.getSyncProvider());
   const [isMigrating, setIsMigrating] = useState(false);
 
   const formatCurrency = (val) => {
@@ -44,6 +44,16 @@ export default function LibraryManager({ isOpen, onClose, library, onSaveLibrary
     const num = parseFloat(val) || 0;
     return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setGeminiKey(localStorage.getItem("jp_gemini_api_key") || '');
+      const config = db.getSupabaseConfig();
+      setSupabaseUrl(config?.url || '');
+      setSupabaseKey(config?.key || '');
+      setSyncProvider(db.getSyncProvider());
+    }
+  }, [isOpen]);
 
   const handleSaveApiUrl = async () => {
     const cleanUrl = apiUrl.trim();
