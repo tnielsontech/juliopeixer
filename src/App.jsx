@@ -604,7 +604,7 @@ Retorne apenas o objeto JSON limpo e estruturado, sem blocos de código markdown
     const newBudget = {
       id: nextId,
       client: {
-        name: parsedData.client?.name || '',
+        name: parsedData.client?.name?.trim() || 'Orçamento Importado',
         phone: parsedData.client?.phone || '',
         address: parsedData.client?.address || '',
         city: parsedData.client?.city || '',
@@ -625,6 +625,15 @@ Retorne apenas o objeto JSON limpo e estruturado, sem blocos de código markdown
     setBudget(newBudget);
     setCurrentStep(1);
     setActiveMobileTab('editor');
+
+    // Salvar automaticamente no banco de dados para evitar perdas
+    try {
+      await db.saveBudget(newBudget);
+      const updatedBudgets = await db.getBudgets();
+      setBudgets(updatedBudgets);
+    } catch (err) {
+      console.error("Erro ao salvar automaticamente orçamento importado:", err);
+    }
   };
 
   const handleSaveBudget = async () => {
