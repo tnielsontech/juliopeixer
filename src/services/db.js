@@ -408,6 +408,19 @@ export const db = {
         const res = await fetchSupabase("budgets?select=*&order=id.asc");
         const budgets = await res.json();
         if (Array.isArray(budgets)) {
+          const localData = localStorage.getItem("jp_budgets");
+          if (localData) {
+            try {
+              const parsedLocal = JSON.parse(localData);
+              if (parsedLocal.length > 0 && budgets.length === 0) {
+                // Backup e proteção contra perda
+                localStorage.setItem("jp_budgets_backup", localData);
+                return parsedLocal;
+              }
+            } catch (err) {
+              console.error("Erro no guard do getBudgets:", err);
+            }
+          }
           localStorage.setItem("jp_budgets", JSON.stringify(budgets));
           return budgets;
         }
@@ -421,6 +434,18 @@ export const db = {
           const res = await fetchWithTimeout(`${url}?action=getBudgets`);
           const budgets = await res.json();
           if (Array.isArray(budgets)) {
+            const localData = localStorage.getItem("jp_budgets");
+            if (localData) {
+              try {
+                const parsedLocal = JSON.parse(localData);
+                if (parsedLocal.length > 0 && budgets.length === 0) {
+                  localStorage.setItem("jp_budgets_backup", localData);
+                  return parsedLocal;
+                }
+              } catch (err) {
+                console.error("Erro no guard do getBudgets (sheets):", err);
+              }
+            }
             localStorage.setItem("jp_budgets", JSON.stringify(budgets));
             return budgets;
           }
