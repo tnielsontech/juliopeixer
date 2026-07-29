@@ -304,13 +304,13 @@ export default function App() {
   };
 
   const handleFileChange = (e) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      handleImportPDF(file);
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+      handleImportPDF(files);
     }
   };
 
-  const handleImportPDF = async (file) => {
+  const handleImportPDF = async (files) => {
     const geminiKey = localStorage.getItem("jp_gemini_api_key");
     if (!geminiKey) {
       showToast("Por favor, configure sua chave do Gemini nas Configurações (Itens) para importar PDFs.", "error");
@@ -318,19 +318,29 @@ export default function App() {
       return;
     }
 
+    const filesArray = Array.isArray(files) ? files : [files];
+
     setIsImporting(true);
-    showToast("Lendo arquivo PDF...", "info");
+    showToast(`Lendo ${filesArray.length} arquivo(s) PDF...`, "info");
 
     try {
-      // Converte o arquivo para base64
-      const base64Data = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result.split(',')[1]);
-        reader.onerror = (error) => reject(error);
-        reader.readAsDataURL(file);
-      });
+      // Converte todos os arquivos para base64
+      const base64Files = await Promise.all(
+        filesArray.map(file => {
+          return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve({
+              mimeType: file.type || 'application/pdf',
+              data: reader.result.split(',')[1],
+              name: file.name
+            });
+            reader.onerror = (error) => reject(error);
+            reader.readAsDataURL(file);
+          });
+        })
+      );
 
-      showToast("IA interpretando projeto arquitetônico...", "info");
+      showToast("IA interpretando projetos e especificações...", "info");
 
       // Passar catálogo de itens no prompt
       const catalogText = library
@@ -340,7 +350,7 @@ export default function App() {
 
       const prompt = `
 Você é o assistente técnico de orçamentos do pintor profissional Júlio Peixer.
-Analise detalhadamente o projeto arquitetônico/interiores em anexo (especialmente no que tange a acabamento de paredes, tetos, pinturas, cores e notas técnicas).
+Analise detalhadamente os arquivos de projeto arquitetônico/interiores e especificações técnicos em anexo (especialmente no que tange a acabamento de paredes, tetos, pinturas, cores, paginações e notas técnicas). Você recebeu ${filesArray.length} arquivo(s). Integre todas as informações para montar o orçamento final.
 
 Você deve identificar todos os ambientes/cômodos (ex: Cozinha, Suíte Master, etc.) com suas respectivas áreas, pé-direito, tintas especificadas, observações de acabamento e serviços necessários.
 
@@ -405,12 +415,12 @@ Retorne um objeto JSON estritamente no formato abaixo, sem qualquer formatação
           contents: [{
             parts: [
               { text: prompt },
-              {
+              ...base64Files.map(bFile => ({
                 inlineData: {
-                  mimeType: 'application/pdf',
-                  data: base64Data
+                  mimeType: bFile.mimeType,
+                  data: bFile.data
                 }
-              }
+              }))
             ]
           }],
           generationConfig: {
@@ -1432,12 +1442,12 @@ Retorne um objeto JSON estritamente no formato abaixo, sem qualquer formatação
           <span>{toast.message}</span>
         </div>
       )}
-      {/* INPUT PDF SECRETO */}
       <input 
         type="file" 
         ref={fileInputRef} 
         onChange={handleFileChange} 
         accept="application/pdf" 
+        multiple
         className="hidden" 
       />
     </div>
